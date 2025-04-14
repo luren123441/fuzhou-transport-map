@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福州交通路线图</title>
+
+    <style>
+        html,
+        body {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+        }
+        
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .header {
+            background-color: #1E90FF;
+            color: white;
+            padding: 10px 20px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        
+        .map-container {
+            flex: 1;
+            height: 75vh;
+        }
+        
+        .basemap-container {
+            height: 110px;
+            background-color: #f5f5f5;
+            border-top: 1px solid #ddd;
+            padding: 10px;
+            overflow-x: auto;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .basemap-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 110px;
+        }
+        
+        .basemap-thumbnail {
+            width: 100px;
+            height: 75px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        
+        .basemap-thumbnail:hover {
+            border-color: #1E90FF;
+            transform: scale(1.05);
+        }
+        
+        .basemap-thumbnail.active {
+            border-color: #1E90FF;
+            box-shadow: 0 0 8px rgba(30, 144, 255, 0.5);
+        }
+        
+        .basemap-label {
+            text-align: center;
+            font-size: 12px;
+            margin-top: 5px;
+            color: #333;
+        }
+    </style>
+
+    <!-- 加载Calcite组件 -->
+    <script type="module" src="https://js.arcgis.com/calcite-components/3.0.3/calcite.esm.js"></script>
+
+    <!-- 加载ArcGIS Maps SDK for JavaScript -->
+    <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css" />
+    <script src="https://js.arcgis.com/4.32/"></script>
+
+    <!-- 加载地图组件 -->
+    <script type="module" src="https://js.arcgis.com/map-components/4.32/arcgis-map-components.esm.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="header">
+            <h1>福州交通路线图</h1>
+        </header>
+
+        <div class="main-content">
+            <div class="map-container">
+                <!-- 设置中心点为福州(119.3, 26.08)，缩放级别12 -->
+                <arcgis-map id="mainMap" basemap="streets" center="119.3, 26.08" zoom="12">
+                    <arcgis-search position="top-right"></arcgis-search>
+                    <arcgis-legend position="bottom-left"></arcgis-legend>
+                    <arcgis-scale-bar position="bottom-left"></arcgis-scale-bar>
+                    <arcgis-layer-list position="top-right"></arcgis-layer-list>
+                </arcgis-map>
+            </div>
+
+            <div class="basemap-container" id="basemapGallery">
+                <!-- 底图缩略图将在这里动态添加 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        require([
+            "esri/layers/FeatureLayer",
+            "esri/Basemap",
+            "esri/widgets/BasemapGallery",
+            "esri/widgets/Expand"
+        ], (FeatureLayer, Basemap, BasemapGallery, Expand) => {
+
+            const arcgisMap = document.getElementById("mainMap");
+
+            arcgisMap.addEventListener("arcgisViewReadyChange", () => {
+                // 添加福州地铁站点图层(0)
+                const subwayStationsLayer = new FeatureLayer({
+                    url: "https://www.geosceneonline.cn/server/rest/services/Hosted/福州地铁/FeatureServer/0",
+                    opacity: 0.9,
+                    title: "福州地铁站点",
+                    popupTemplate: {
+                        title: "福州地铁站点信息",
+                        content: [{
+                            type: "fields",
+                            fieldInfos: [{
+                                fieldName: "NAME",
+                                label: "站点名称"
+                            }, {
+                                fieldName: "LINE",
+                                label: "所属线路"
+                            }]
+                        }]
+                    },
+                    renderer: {
+                        type: "simple",
+                        symbol: {
+                            type: "simple-marker",
+                            color: "#FF0000",
+                            size: "8px",
+                            outline: {
+                                color: "#FFFFFF",
+                                width: "1px"
+                            }
+                        }
+                    }
+                });
+
+                // 添加福州地铁线路图层(1)
+                const subwayLinesLayer = new FeatureLayer({
+                    url: "https://www.geosceneonline.cn/server/rest/services/Hosted/福州地铁/FeatureServer/1",
+                    opacity: 0.9,
+                    title: "福州地铁线路",
+                    popupTemplate: {
+                        title: "福州地铁线路信息",
+                        content: [{
+                            type: "fields",
+                            fieldInfos: [{
+                                fieldName: "LINE",
+                                label: "线路名称"
+                            }, {
+                                fieldName: "LENGTH",
+                                label: "线路长度(km)"
+                            }]
+                        }]
+                    },
+                    renderer: {
+                        type: "simple",
+                        symbol: {
+                            type: "simple-line",
+                            color: "#FF0000",
+                            width: "3px",
+                            style: "solid"
+                        }
+                    }
+                });
+
+                // 添加公交站点图层(0)
+                const busStopsLayer = new FeatureLayer({
+                    url: "https://www.geosceneonline.cn/server/rest/services/Hosted/福州市2024年公交站点和线路数据/FeatureServer/0",
+                    title: "公交站点",
+                    opacity: 0.8,
+                    popupTemplate: {
+                        title: "公交站点信息",
+                        content: [{
+                            type: "fields",
+                            fieldInfos: [{
+                                fieldName: "站点名称",
+                                label: "站点名称"
+                            }, {
+                                fieldName: "线路名称",
+                                label: "途经线路"
+                            }]
+                        }]
+                    },
+                    renderer: {
+                        type: "simple",
+                        symbol: {
+                            type: "simple-marker",
+                            color: "#00FF00",
+                            size: "8px",
+                            outline: {
+                                color: "#FFFFFF",
+                                width: "1px"
+                            }
+                        }
+                    }
+                });
+
+                // 添加公交线路图层(1)
+                const busRoutesLayer = new FeatureLayer({
+                    url: "https://www.geosceneonline.cn/server/rest/services/Hosted/福州市2024年公交站点和线路数据/FeatureServer/1",
+                    title: "公交线路",
+                    opacity: 0.7,
+                    popupTemplate: {
+                        title: "公交线路信息",
+                        content: [{
+                            type: "fields",
+                            fieldInfos: [{
+                                fieldName: "线路名称",
+                                label: "线路名称"
+                            }, {
+                                fieldName: "起点站",
+                                label: "起点站"
+                            }, {
+                                fieldName: "终点站",
+                                label: "终点站"
+                            }]
+                        }]
+                    },
+                    renderer: {
+                        type: "simple",
+                        symbol: {
+                            type: "simple-line",
+                            color: "#0000FF",
+                            width: "2px",
+                            style: "solid"
+                        }
+                    }
+                });
+
+                // 添加公交站点详细数据图层(2)
+                const busStopsDetailLayer = new FeatureLayer({
+                    url: "https://www.geosceneonline.cn/server/rest/services/Hosted/福州市2024年公交站点和线路数据/FeatureServer/2",
+                    title: "公交站点详情",
+                    opacity: 0.8,
+                    popupTemplate: {
+                        title: "公交站点详细信息",
+                        content: [{
+                            type: "fields",
+                            fieldInfos: [{
+                                fieldName: "站点名称",
+                                label: "站点名称"
+                            }, {
+                                fieldName: "站点地址",
+                                label: "站点地址"
+                            }, {
+                                fieldName: "运营时间",
+                                label: "运营时间"
+                            }]
+                        }]
+                    },
+                    renderer: {
+                        type: "simple",
+                        symbol: {
+                            type: "simple-marker",
+                            color: "#FFFF00",
+                            size: "6px",
+                            outline: {
+                                color: "#000000",
+                                width: "1px"
+                            }
+                        }
+                    }
+                });
+
+                // 将所有图层添加到地图
+                arcgisMap.map.addMany([subwayStationsLayer, subwayLinesLayer, busRoutesLayer, busStopsLayer, busStopsDetailLayer]);
+
+                // 底图配置 - 使用ArcGIS官方标准底图ID和缩略图
+                const basemaps = [{
+                    id: "streets",
+                    label: "街道图",
+                    thumbnail: "https://js.arcgis.com/4.32/esri/themes/base/images/basemaps/streets.jpg"
+                }, {
+                    id: "topo-vector",
+                    label: "地形图",
+                    thumbnail: "https://js.arcgis.com/4.32/esri/themes/base/images/basemaps/topo-vector.jpg"
+                }, {
+                    id: "satellite",
+                    label: "卫星影像",
+                    thumbnail: "https://js.arcgis.com/4.32/esri/themes/base/images/basemaps/satellite.jpg"
+                }, {
+                    id: "hybrid",
+                    label: "混合地图",
+                    thumbnail: "https://js.arcgis.com/4.32/esri/themes/base/images/basemaps/hybrid.jpg"
+                }, {
+                    id: "streets-navigation-vector",
+                    label: "导航地图",
+                    thumbnail: "https://js.arcgis.com/4.32/esri/themes/base/images/basemaps/streets-navigation-vector.jpg"
+                }, {
+                    id: "gray-vector",
+                    label: "灰色地图",
+                    thumbnail: "https://js.arcgis.com/4.32/esri/themes/base/images/basemaps/gray-vector.jpg"
+                }];
+
+                // 获取底图容器
+                const basemapContainer = document.getElementById("basemapGallery");
+
+                // 为每个底图创建缩略图
+                basemaps.forEach(basemap => {
+                    const item = document.createElement("div");
+                    item.className = "basemap-item";
+
+                    const thumbnail = document.createElement("img");
+                    thumbnail.src = basemap.thumbnail;
+                    thumbnail.alt = basemap.label;
+                    thumbnail.title = basemap.label;
+                    thumbnail.className = "basemap-thumbnail";
+
+                    // 添加错误处理
+                    thumbnail.onerror = function() {
+                        console.error("缩略图加载失败:", this.src);
+                        this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 75'%3E%3Crect width='100' height='75' fill='%23eee'/%3E%3Ctext x='50' y='40' font-family='Arial' font-size='12' text-anchor='middle' fill='%23333'%3E缩略图%3C/text%3E%3C/svg%3E";
+                    };
+
+                    const label = document.createElement("div");
+                    label.className = "basemap-label";
+                    label.textContent = basemap.label;
+
+                    thumbnail.addEventListener("click", () => {
+                        // 移除所有缩略图的active类
+                        document.querySelectorAll(".basemap-thumbnail").forEach(el => {
+                            el.classList.remove("active");
+                        });
+
+                        // 为当前点击的缩略图添加active类
+                        thumbnail.classList.add("active");
+
+                        // 更改底图
+                        arcgisMap.view.map.basemap = basemap.id;
+                    });
+
+                    item.appendChild(thumbnail);
+                    item.appendChild(label);
+                    basemapContainer.appendChild(item);
+                });
+
+                // 设置第一个底图为默认选中状态
+                if (basemapContainer.querySelector(".basemap-thumbnail")) {
+                    basemapContainer.querySelector(".basemap-thumbnail").classList.add("active");
+                }
+
+                // 确保视图定位到福州
+                arcgisMap.view.when(() => {
+                    arcgisMap.view.goTo({
+                        center: [119.3, 26.08], // 福州中心坐标
+                        zoom: 12 // 适合显示福州交通的缩放级别
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
